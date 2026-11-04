@@ -19,6 +19,11 @@ GEMRootHitTree::GEMRootHitTree(const char* path)
     pTree->Branch("axis",Axis,"axis[nch]/I");
     pTree->Branch("strip",Strip,"strip[nch]/I");
 
+    pTree->Branch("mpd",   MPD,   "mpd[nch]/I");
+    pTree->Branch("adcch", ADCch, "adcch[nch]/I");
+    pTree->Branch("rawch", RawCh, "rawch[nch]/I");
+    pTree->Branch("xtalk", XTalk, "xtalk[nch]/I");
+
     pTree->Branch("adc0",adc0,"adc0[nch]/I");
     pTree->Branch("adc1",adc1,"adc1[nch]/I");
     pTree->Branch("adc2",adc2,"adc2[nch]/I");
@@ -107,6 +112,11 @@ void GEMRootHitTree::Fill(GEMSystem *gem_sys, const EventData &ev)
         const std::string & detector_type = gem_sys -> GetAPV(addr.crate, addr.mpd, addr.adc)
             -> GetPlane() -> GetDetector() -> GetType();
         Strip[i] = apv_strip_mapping::Mapping::Instance()->GetStrip(detector_type, addr);
+
+	MPD[i]   = addr.mpd;
+        ADCch[i] = addr.adc;
+        RawCh[i] = addr.strip;   // raw APV index, before strip mapping
+        XTalk[i] = gem_sys->GetAPV(addr.crate, addr.mpd, addr.adc)->IsCrossTalkStrip(addr.strip) ? 1 : 0;
     }
     
     if(pTree != nullptr) {

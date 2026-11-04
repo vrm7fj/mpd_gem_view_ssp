@@ -1,3 +1,4 @@
+#include <cmath>
 //============================================================================//
 // GEM detector class                                                         //
 // A detector has several planes (currently they are X, Y)                    //

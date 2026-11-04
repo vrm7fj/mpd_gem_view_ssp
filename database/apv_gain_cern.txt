@@ -1,0 +1,12 @@
+mod_Xgain  0   1    156  
+mod_Ygain  0   1    1.10065  
+mod_Xgain  1   1    1  
+mod_Ygain  1   1    1.29494  
+mod_Xgain  2   2    0.943275  1  
+mod_Ygain  2   2    0.962604  1.1082  
+mod_Xgain  3   2    1.01104  1  
+mod_Ygain  3   2    0.935353  0.987043  
+mod_Xgain  4   1    1  
+mod_Ygain  4   1    0.964739  
+mod_Xgain  5   1    1  
+mod_Ygain  5   1    0.949651  

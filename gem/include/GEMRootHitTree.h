@@ -35,6 +35,10 @@ private:
     int Module[MAXHITS];   // gem location in layer
     int Strip[MAXHITS];    // strip index on a single chamber
     int Axis[MAXHITS];  // x or y plane
+    int MPD[MAXHITS];      // MPD id
+    int ADCch[MAXHITS];    // APV (adc channel) on the MPD
+    int RawCh[MAXHITS];    // APV channel in readout (multiplexer) order
+    int XTalk[MAXHITS];    // 1 = flagged by IsCrossTalkStrip
 
     int adc0[MAXHITS];
     int adc1[MAXHITS];

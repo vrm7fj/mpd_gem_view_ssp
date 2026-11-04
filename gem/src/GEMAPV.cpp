@@ -20,7 +20,12 @@
 #include "TF1.h"
 #include "TH1.h"
 #include "hardcode.h"
+#include <set>
 
+
+float GEMAPV::crosstalk_corr_cut = 0.8f;
+float GEMAPV::crosstalk_thres_nnn = 9.f;
+std::unordered_map<int, float> GEMAPV::apv_gain;
 ////////////////////////////////////////////////////////////////////////////////
 // macro to get the data index
 #define DATA_INDEX(ch, ts) (ts_begin + ch + ts*MPD_APV_TS_LEN)
@@ -845,6 +850,37 @@ void GEMAPV::ZeroSuppression()
             else
                 hit_pos[i] = false;
     }
+
+        // per-APV gain correction (after hit finding)
+    if(plane != nullptr)
+    {
+        int key = plane->GetDetector()->GetDetID() * 1000
+                + static_cast<int>(plane->GetType()) * 100   // 0 = X, 1 = Y
+                + plane_index;
+
+	
+        // --- temporary debug: print each APV's key once ---
+        static std::set<int> printed;
+        if(printed.insert(key).second)
+            std::cout << "APV crate " << crate_id << " mpd " << mpd_id << " adc " << adc_ch
+                      << "  det " << plane->GetDetector()->GetDetID()
+                      << " layer " << plane->GetDetector()->GetLayerID()
+                      << " axis " << static_cast<int>(plane->GetType())
+                      << " pos " << plane_index
+                      << "  key " << key
+                      << "  gain " << (apv_gain.count(key) ? apv_gain.at(key) : -1.f)
+                      << std::endl;
+        // --- end debug ---
+	
+        auto it = apv_gain.find(key);
+        if(it != apv_gain.end() && it->second != 1.f)
+        {
+            float g = it->second;
+            for(uint32_t ts = 0; ts < time_samples; ++ts)
+                for(uint32_t i = 0; i < APV_STRIP_SIZE; ++i)
+                    raw_data[DATA_INDEX(i, ts)] *= g;
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1517,22 +1553,53 @@ std::vector<float> GEMAPV::GetRawTSADC(const uint32_t &ch)
 ////////////////////////////////////////////////////////////////////////////////
 // check if this strip is a cross-talk strip (possibly)
 
-bool GEMAPV::IsCrossTalkStrip(const uint32_t &ch)
-    const
-{
-    if(ch >= APV_STRIP_SIZE || !hit_pos[ch])
-        return false;
+bool GEMAPV::IsCrossTalkStrip(const uint32_t &ch) const {
 
-    float max_charge = GetMaxCharge(ch);
-    float pre_max = GetMaxCharge(ch - 1);
-    float next_max = GetMaxCharge(ch + 1);
+  // Check whether strip/channel ch is a crosstalk copy of one of its two readout neighbors, ch-1 and ch+1
+  if (ch >= APV_STRIP_SIZE || !hit_pos[ch]) return false; // hit_pos[ch] = true means this channel had a signal above threshold
 
-    max_charge *= crosstalk_thres;
+  //const double crosstalk_corr_cut = 0.8; //hardcoding this, lazy 
 
-    if(max_charge < pre_max || max_charge < next_max)
-        return true;
+  auto leaks_from = [&](int src, double thres) -> bool {
 
-    return false;
+    if (src < 0 || src >= (int)APV_STRIP_SIZE || !hit_pos[src]) return false; // neighbor must be a valid channel with a hit
+
+    if (thres * GetMaxCharge(ch) >= GetMaxCharge(src)) return false; // if ch*N >= src, ch is too big to be crosstalk
+
+    if (GetMaxTimeBin(ch) != GetMaxTimeBin(src)) return false;
+
+    // running sums for the correlation calculation
+    double sx = 0;
+    double sy = 0;
+    double sxx = 0;
+    double syy = 0;
+    double sxy = 0;
+    int n = time_samples;
+
+    for (uint32_t j = 0; j < time_samples; ++j) {
+
+      double x = raw_data[DATA_INDEX(src, j)];
+      double y = raw_data[DATA_INDEX(ch, j)];
+
+      sx += x;
+      sy += y;
+      sxx += x*x;
+      syy += y*y;
+      sxy += x*y;
+    }
+
+    double cov = sxy - sx*sy/n;
+    double vx  = sxx - sx*sx/n;
+    double vy  = syy - sy*sy/n;
+
+    // Pearson correlation coefficient
+    double r = (vx > 0 && vy > 0) ? cov / std::sqrt(vx*vy) : 0.;
+    return r > crosstalk_corr_cut;
+  };
+
+  const int c = (int)ch;
+  return leaks_from(c - 1, crosstalk_thres)     || leaks_from(c + 1, crosstalk_thres)
+        || leaks_from(c - 2, crosstalk_thres_nnn) || leaks_from(c + 2, crosstalk_thres_nnn);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

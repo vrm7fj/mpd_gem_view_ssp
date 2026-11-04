@@ -108,6 +108,10 @@ const
 
 bool GEMCluster::IsGoodStrip(const StripHit &hit) const
 {
+// reject strips flagged as APV crosstalk by GEMAPV::IsCrossTalkStrip
+  // if(hit.cross_talk)
+  //  return false;
+    
 #ifdef USE_GEM_CUT
     // time bin cut
     if(!Cuts::Instance().max_time_bin(hit))
@@ -325,6 +329,11 @@ const
 
 bool GEMCluster::IsGoodCluster([[maybe_unused]]const StripCluster &cluster) const
 {
+
+  // Reject clusters made only of crosstalk-flagged strips
+  if(is_pure_ct(cluster))
+    return false;
+  
 #ifdef USE_GEM_CUT
     // bad size
     if((cluster.hits.size() < min_cluster_hits) ||

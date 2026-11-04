@@ -21,6 +21,8 @@
 #include <TH1I.h>
 #include <cstdint>
 #include "GEMSystem.h"
+#include <fstream>
+#include <sstream>
 #include "GEMMPD.h"
 #include "GEMDetectorLayer.h"
 #include "GEMException.h"
@@ -205,6 +207,8 @@ void GEMSystem::Configure(const std::string &path)
     CONF_CONN(def_cth, "Default Common Mode Threshold", 20, verbose);
     CONF_CONN(def_zth, "Default Zero Suppression Threshold", 5, verbose);
     CONF_CONN(def_ctth, "Default Cross Talk Threshold", 8, verbose);
+    CONF_CONN(GEMAPV::crosstalk_corr_cut, "Default Cross Talk Corr Cut", 0.8f, verbose);
+    CONF_CONN(GEMAPV::crosstalk_thres_nnn, "Default Cross Talk Threshold NNN", 9.f, verbose); 
 
     gem_recon.Configure(Value<std::string>("GEM Cluster Configuration"));
 
@@ -234,6 +238,43 @@ void GEMSystem::Configure(const std::string &path)
     }
 
     //PrintStatus();
+
+    // per-APV gain file, SBS format:
+    //   mod_Xgain <module> <nAPV> g0 g1 ...
+    //   mod_Ygain <module> <nAPV> g0 g1 ...
+    {
+        std::string gain_file = Value<std::string>("GEM APV Gain", std::string(""), false);
+        GEMAPV::apv_gain.clear();
+        if(!gain_file.empty()) {
+            std::ifstream in(gain_file);
+            if(!in.is_open()) {
+                std::cout << "ERROR: cannot open APV gain file " << gain_file
+                          << ", all gains = 1" << std::endl;
+            } else {
+                std::string line;
+                while(std::getline(in, line)) {
+                    std::istringstream ss(line);
+                    std::string tag; int mod, napv;
+                    if(!(ss >> tag >> mod >> napv)) continue;          // empty / bad line
+                    int axis;
+                    if(tag == "mod_Xgain")      axis = 0;
+                    else if(tag == "mod_Ygain") axis = 1;
+                    else continue;                                    // comments, other keys
+                    for(int pos = 0; pos < napv; ++pos) {
+                        float g;
+                        if(!(ss >> g)) {
+                            std::cout << "WARNING: " << tag << " module " << mod
+                                      << " lists " << napv << " APVs but has fewer gains" << std::endl;
+                            break;
+                        }
+                        GEMAPV::apv_gain[mod * 1000 + axis * 100 + pos] = g;
+                    }
+                }
+                std::cout << "Loaded " << GEMAPV::apv_gain.size()
+                          << " APV gains from " << gain_file << std::endl;
+            }
+        }
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

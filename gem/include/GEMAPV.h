@@ -132,6 +132,10 @@ public:
     const std::vector<int> & GetUnusedChannels() const {return unused_channels;}
     std::string GetAPVName() const {return apv_name;}
 
+    static float crosstalk_corr_cut; //min Pearson r for crosstalk
+    static float crosstalk_thres_nnn;
+    static std::unordered_map<int, float> apv_gain;   // key = module*1000 + axis*100 + apv_pos
+
     // set parameters
     void SetMPD(GEMMPD *f, int adc_ch, bool force_set = false);
     void UnsetMPD(bool force_unset = false);
